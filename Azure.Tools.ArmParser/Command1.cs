@@ -2,6 +2,7 @@
 using System.ComponentModel.Design;
 using System.Globalization;
 using System.Linq;
+using EnvDTE;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
 
@@ -13,7 +14,7 @@ namespace Azure.Tools.ArmParser
 
         public static readonly Guid CommandSet = new Guid("b394839a-d886-44d2-94c9-ffeeb48d97d5");
 
-        private readonly Package package;
+        private readonly Package Package;
 
         private Command1(Package package)
         {
@@ -21,6 +22,8 @@ namespace Azure.Tools.ArmParser
             {
                 throw new ArgumentNullException("package");
             }
+
+            Package = package;
 
 
             if (ServiceProvider.GetService(typeof(IMenuCommandService)) is OleMenuCommandService commandService)
@@ -41,7 +44,7 @@ namespace Azure.Tools.ArmParser
         {
             get
             {
-                return package;
+                return Package;
             }
         }
 
@@ -59,13 +62,55 @@ namespace Azure.Tools.ArmParser
             {
                 foreach (EnvDTE.SelectedItem selectedItem in selectedItems)
                 {
-                    var projectItem = selectedItem.ProjectItem as EnvDTE.ProjectItem;
+                    var projectItem = selectedItem.ProjectItem as ProjectItem;
 
                     if (projectItem != null)
                     {
                         try
                         {
-                            ParseArmSource.Execute(projectItem.FileNames[0]);
+                            var doc = projectItem.Document;
+                            if (!projectItem.IsOpen)
+                            {
+                                projectItem.Open();
+                            }
+
+
+                            var textSelection = (TextSelection)projectItem.Document.Selection;
+                            textSelection.SelectAll();
+
+                            var currentText = textSelection.Text;
+                            var newText = ParseArmSource.Execute(textSelection.Text);
+
+                            if (currentText.Equals(newText))
+                            {
+                                VsShellUtilities.ShowMessageBox(
+                                                               this.ServiceProvider,
+                                                               $"Done parsing {projectItem.Document.Name}",
+                                                               "No changes!",
+                                                               OLEMSGICON.OLEMSGICON_INFO,
+                                                               OLEMSGBUTTON.OLEMSGBUTTON_OK,
+                                                               OLEMSGDEFBUTTON.OLEMSGDEFBUTTON_FIRST);
+
+                            }                            
+                            else
+                            {
+                                textSelection.Insert(ParseArmSource.Execute(textSelection.Text));
+                                if (VsShellUtilities.ShowMessageBox(
+                                                               this.ServiceProvider,
+                                                               $"Done parsing {projectItem.Document.Name}",
+                                                               "Save changes?",
+                                                               OLEMSGICON.OLEMSGICON_QUERY,
+                                                               OLEMSGBUTTON.OLEMSGBUTTON_YESNO,
+                                                               OLEMSGDEFBUTTON.OLEMSGDEFBUTTON_FIRST) == 6)
+
+                                {
+                                    projectItem.Document.Save();
+                                    //projectItem.Save();
+                                }
+                            }
+
+
+
                         }
                         catch (Exception ex)
                         {
