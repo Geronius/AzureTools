@@ -1,7 +1,7 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <PackageManifest Version="2.0.0" xmlns="http://schemas.microsoft.com/developer/vsx-schema/2011" xmlns:d="http://schemas.microsoft.com/developer/vsx-schema-design/2011">
     <Metadata>
-        <Identity Id="Azure.Tools.ArmParser.295b83d6-965e-49b5-92c2-94e36c9fa6bd" Version="1.1" Language="en-US" Publisher="Gert Vloo" />
+        <Identity Id="Azure.Tools.ArmParser.295b83d6-965e-49b5-92c2-94e36c9fa6bd" Version="1.2.1" Language="en-US" Publisher="Gert Vloo" />
         <DisplayName>Azure.Tools.ArmParser</DisplayName>
         <Description xml:space="preserve">Empty VSIX Project.</Description>
     </Metadata>

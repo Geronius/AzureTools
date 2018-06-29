@@ -10,6 +10,9 @@ namespace Azure.Tools.ArmParser
 {
     static class ParseArmSource
     {
+        //defaults
+        private const string namespacePropertyName = "namespace_name";
+
         internal static JObject jsonObject;
 
         internal static string Execute(string text)
@@ -27,6 +30,10 @@ namespace Azure.Tools.ArmParser
                 {
                     case "Microsoft.Logic/workflows":
                         ParseLogicApps(resource);
+                        break;
+
+                    case "Microsoft.ServiceBus/namespaces":
+                        ParseNamespaces(resource);
                         break;
 
                     case "Microsoft.ServiceBus/namespaces/topics":
@@ -73,63 +80,104 @@ namespace Azure.Tools.ArmParser
             return output;
         }
 
+
+        private static void ParseNamespaces(JObject resource)
+        {
+
+            //get parameter array
+            var parameters = jsonObject["parameters"] as JObject;
+
+            //define name
+            var name = string.Empty;
+            if (resource["name"].Value<string>() == $"[parameters('{namespacePropertyName}')]")
+            {
+                name = parameters.SelectToken($"$..{namespacePropertyName}..defaultValue").Value<string>();
+            }
+            else
+            {
+                name = $"{resource["name"]}".Replace("[parameters('namespaces_", "").Replace("_name')]", "");
+            }
+
+
+            //add namespace_name_parameter is not exist
+            var namespace_name_parameter = parameters.SelectToken(namespacePropertyName);
+            if (namespace_name_parameter == null)
+            {
+                parameters.Add(new JProperty(namespacePropertyName, new JObject(new JProperty("defaultValue", name), new JProperty("type", "string"))));
+            }
+
+            //change name parameter in fixed value
+            resource["name"] = $"[parameters('{namespacePropertyName}')]";
+
+            //change location to location of resourcegroup.
+            resource["location"] = "[resourceGroup().location]";
+
+            //change tag to fixed value
+            if (resource?["tags"] == null)
+            {
+                var l = resource["location"].Parent;
+                l.AddAfterSelf(new JProperty("tags", new JObject(new JProperty("displayName", name))));
+            }
+            else
+            {
+                resource["tags"]["displayName"] = name;
+            }
+
+
+            //set some properties
+            foreach (var prop in resource["properties"].Values<JProperty>())
+            {
+                if (prop.Name == "serviceBusEndpoint")
+                {
+                    prop.Value = $"[concat('https://', parameters('{namespacePropertyName}'),'.servicebus.windows.net:443/')]";
+                }
+                else if (prop.Name == "metricId")
+                {
+                    prop.Value = $"[concat(subscription().subscriptionId, ':', parameters('{namespacePropertyName}'))]";
+                }
+            }
+
+        }
+
         private static void ParseTopics(JObject resource)
         {
             //define name
             var nameArray = $"{resource["name"]}".Split('/');
-            var name = "[concat(parameters('namespace_name'), '/" + nameArray[1].Replace("parameters('topics_", "'").Replace("_name')", "'");
+            var name = $"[concat(parameters('{namespacePropertyName}'), '/" + nameArray[1].Replace("parameters('topics_", "'").Replace("_name')", "'");
             var displayName = name.Split('/')[1].Replace("parameters('topics_", "").Replace(@"_name')", "").Replace(@"', '", "").Replace(@"')]", "");
 
             //get parameter array
             var parameters = jsonObject["parameters"] as JObject;
 
             //add namespace_name_parameter is not exist
-            var namespace_name_parameter = parameters.SelectToken("namespace_name");
+            var namespace_name_parameter = parameters.SelectToken(namespacePropertyName);
             if (namespace_name_parameter == null)
             {
-                parameters.Add(new JProperty("namespace_name", new JObject(new JProperty("defaultValue", nameArray[0].Replace("[concat(parameters('namespaces_", "").Replace("_name'), '", "")), new JProperty("type", "String"))));
+                parameters.Add(new JProperty(namespacePropertyName, new JObject(new JProperty("defaultValue", nameArray[0].Replace("[concat(parameters('namespaces_", "").Replace("_name'), '", "")), new JProperty("type", "string"))));
             }
 
             //change name parameter in fixed value
             resource["name"] = name;
-            
+
             //change location to location of resourcegroup.
             resource["location"] = "[resourceGroup().location]";
-            
+
             //change tag to fixed value
             if (resource?["tags"] == null)
             {
                 var l = resource["location"].Parent;
-                l.AddAfterSelf(new JProperty("tags", new JObject(new JProperty("displayName", displayName))));
+                l.AddAfterSelf(new JProperty("tags", new JObject(new JProperty("displayName", "servicebus_namespace"))));
             }
             else
             {
-                resource["tags"]["displayName"] = displayName;
+                resource["tags"]["displayName"] = "servicebus_namespace";
             }
 
             //set dependencies
             resource["dependsOn"] = new JArray();
-            JArray dependsOn = ((JArray)resource["dependsOn"]);
-            dependsOn.Add(new JValue("[resourceId('Microsoft.ServiceBus/namespaces', parameters('namespace_name'))]"));
-            //var 
-            //dependsOn
-
-            //if (resource["dependsOn"] != null)
-            //{
-            //    var dependsOn = ((JArray)resource["dependsOn"]).Cast<JValue>();
-
-
-            //    foreach (var dependencie in dependsOn)
-            //    {
-            //        //if (dependencie.Value<string>() ==
-            //        //    $"[resourceId('Microsoft.Web/connections', parameters('connections_{connectionName}_name'))]"
-            //        //)
-            //        //{
-            //        //    dependencie.Value =
-            //        //        $"[resourceId('Microsoft.Web/connections', variables('{connectionName}_Connection'))]";
-            //        //}
-            //    }
-            //}
+            //JArray dependsOn = ((JArray)resource["dependsOn"]);
+            //dependsOn.Add(new JValue($"[resourceId('Microsoft.ServiceBus/namespaces', parameters('{namespacePropertyName}'))]"));
+            
         }
 
         private static void ParseLogicApps(JObject resource)
