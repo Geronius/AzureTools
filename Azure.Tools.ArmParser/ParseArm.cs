@@ -20,7 +20,7 @@ namespace Azure.Tools.ArmParser
             jsonObject = JObject.Parse(text, new JsonLoadSettings { CommentHandling = CommentHandling.Load });
 
 
-            foreach (JObject resource in jsonObject["resources"])
+            foreach (var resource in jsonObject["resources"])
             {
 
                 //skip if condition not met
@@ -29,15 +29,15 @@ namespace Azure.Tools.ArmParser
                 switch (resource["type"].Value<string>())
                 {
                     case "Microsoft.Logic/workflows":
-                        ParseLogicApps(resource);
+                        ParseLogicApps((JObject)resource);
                         break;
 
                     case "Microsoft.ServiceBus/namespaces":
-                        ParseNamespaces(resource);
+                        ParseNamespaces((JObject)resource);
                         break;
 
                     case "Microsoft.ServiceBus/namespaces/topics":
-                        ParseTopics(resource);
+                        ParseTopics((JObject)resource);
                         break;
 
                 }
