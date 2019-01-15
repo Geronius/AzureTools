@@ -1,7 +1,9 @@
-﻿using Newtonsoft.Json.Linq;
+﻿using System;
+using Newtonsoft.Json.Linq;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices.ComTypes;
 
 namespace Azure.Tools.ArmParser
 {
@@ -270,10 +272,12 @@ namespace Azure.Tools.ArmParser
                 recurrence["interval"] = "[parameters('LogicAppTriggerInterVal')]";
 
             //update schemas
-            foreach (var schemaObject in definition.SelectTokens("$..schema"))
+            foreach (var schemaObject in definition.SelectTokens("$..schema").Cast<JObject>())
             {
+                var schemaObjectPath = schemaObject.Path;
+
                 //update #text nodes with title property
-                foreach (JObject textNode in schemaObject.SelectTokens("$..#text"))
+                foreach (var textNode in schemaObject.SelectTokens("$..#text").Cast<JObject>())
                 {
                     var prop = textNode.Property("title");
                     if (prop == null)
@@ -282,6 +286,36 @@ namespace Azure.Tools.ArmParser
                         textNode.Add(new JProperty("title", propTitle));
 
                     }
+                }
+
+                //make types nullable
+                foreach (var jValue in schemaObject.SelectTokens("$..type").Where(t => t is JValue).Cast<JValue>().ToList())
+                {
+                    if (jValue.Value.ToString() == "object")
+                        continue;
+
+                    jValue.Parent.Replace(new JProperty("type", new JArray(jValue.Value, "null")));
+                }
+
+                //Add description with jPath to objects
+                foreach (var jObject in schemaObject.Descendants().Where(p => p is JObject).Cast<JObject>())
+                {
+
+                    var currentPath = jObject.Path.Replace($"{schemaObjectPath}", "").Replace(".properties", "").Replace(".items", "[0]");
+
+                    if (currentPath.StartsWith("[0]"))
+                        currentPath = currentPath.Remove(0, 3);
+
+                    currentPath = currentPath.Trim('.');
+
+                    var descriptionNode = jObject.Property("description");
+                    if (descriptionNode == null)
+                    {
+                        descriptionNode = new JProperty("description", currentPath);
+                        jObject.Add(descriptionNode);
+                    }
+                    //else
+                    //    descriptionNode.Value = currentPath;
                 }
                               
             }
