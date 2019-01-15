@@ -1,9 +1,7 @@
-﻿using System;
-using Newtonsoft.Json.Linq;
+﻿using Newtonsoft.Json.Linq;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Runtime.InteropServices.ComTypes;
 
 namespace Azure.Tools.ArmParser
 {
@@ -288,15 +286,22 @@ namespace Azure.Tools.ArmParser
                     }
                 }
 
+                //remove @@xmlns nodes
+                foreach (var nsNode in schemaObject.SelectTokens("$..@@xmlns").Cast<JObject>().ToList())
+                {
+                    nsNode.Parent.Remove();
+                }
+
                 //make types nullable
                 foreach (var jValue in schemaObject.SelectTokens("$..type").Where(t => t is JValue).Cast<JValue>().ToList())
                 {
                     if (jValue.Value.ToString() == "object")
                         continue;
 
-                    jValue.Parent.Replace(new JProperty("type", new JArray(jValue.Value, "null")));
+                    //jValue.Parent.Replace(new JProperty("type", new JArray(jValue.Value, "null")));
+                    jValue.Parent.Replace(new JProperty("type", "object"));
                 }
-
+                
                 //Add description with jPath to objects
                 foreach (var jObject in schemaObject.Descendants().Where(p => p is JObject).Cast<JObject>())
                 {
@@ -309,15 +314,18 @@ namespace Azure.Tools.ArmParser
                     currentPath = currentPath.Trim('.');
 
                     var descriptionNode = jObject.Property("description");
-                    if (descriptionNode == null)
+                    if (jObject.Property("type") != null)
                     {
-                        descriptionNode = new JProperty("description", currentPath);
-                        jObject.Add(descriptionNode);
+                        if (descriptionNode == null)
+                        {
+                            descriptionNode = new JProperty("description", currentPath);
+                            jObject.Add(descriptionNode);
+                        }
                     }
-                    //else
-                    //    descriptionNode.Value = currentPath;
+                    else if (descriptionNode != null)
+                        descriptionNode.Remove();
                 }
-                              
+
             }
 
 
