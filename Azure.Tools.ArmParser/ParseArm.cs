@@ -1,10 +1,7 @@
 ﻿using Newtonsoft.Json.Linq;
-using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Azure.Tools.ArmParser
 {
@@ -177,7 +174,7 @@ namespace Azure.Tools.ArmParser
             resource["dependsOn"] = new JArray();
             //JArray dependsOn = ((JArray)resource["dependsOn"]);
             //dependsOn.Add(new JValue($"[resourceId('Microsoft.ServiceBus/namespaces', parameters('{namespacePropertyName}'))]"));
-            
+
         }
 
         private static void ParseLogicApps(JObject resource)
@@ -259,7 +256,7 @@ namespace Azure.Tools.ArmParser
             //change tag to fixed value
             if (resource?["tags"] == null)
             {
-                var l = ((JToken)resource["location"]).Parent;
+                var l = resource["location"].Parent;
                 l.AddAfterSelf(new JProperty("tags", new JObject(new JProperty("displayName", name))));
             }
             else
@@ -271,6 +268,23 @@ namespace Azure.Tools.ArmParser
             var recurrence = definition.SelectToken("$.triggers..recurrence");
             if (recurrence?["interval"].Value<string>() == "3")
                 recurrence["interval"] = "[parameters('LogicAppTriggerInterVal')]";
+
+            //update schemas
+            foreach (var schemaObject in definition.SelectTokens("$..schema"))
+            {
+                //update #text nodes with title property
+                foreach (JObject textNode in schemaObject.SelectTokens("$..#text"))
+                {
+                    var prop = textNode.Property("title");
+                    if (prop == null)
+                    {
+                        var propTitle = ((JProperty)textNode.Parent.Parent.Parent.Parent.Parent).Name;
+                        textNode.Add(new JProperty("title", propTitle));
+
+                    }
+                }
+                              
+            }
 
 
             //update uri's
