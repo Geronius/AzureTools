@@ -292,14 +292,35 @@ namespace Azure.Tools.ArmParser
                     nsNode.Parent.Remove();
                 }
 
-                //make types nullable
+                foreach (var prop in schemaObject.SelectTokens("$..properties").Where(t => t is JObject).Cast<JObject>().ToList())
+                {
+                    var @type = ((JObject)prop.Parent.Parent).Property("type");
+                    if (@type == null)
+                    {
+                        ((JObject)prop.Parent.Parent).Add(new JProperty("type", "object"));
+                    }
+                    else
+	                {
+                        @type.Value = "object";
+                    }
+
+                    //jValue.Parent.Replace(new JProperty("type", "object"));
+                }
+
+                //make non object types unknown.
                 foreach (var jValue in schemaObject.SelectTokens("$..type").Where(t => t is JValue).Cast<JValue>().ToList())
                 {
-                    if (jValue.Value.ToString() == "object")
-                        continue;
+                    //if (jValue.Value.ToString() == "object")
+                    //   continue;
+
+                    if (jValue.Parent.Parent is JObject parent && parent.Property("properties") != null)
+                    {
+                        jValue.Parent.Replace(new JProperty("type", "object"));
+                    }
 
                     //jValue.Parent.Replace(new JProperty("type", new JArray(jValue.Value, "null")));
-                    jValue.Parent.Replace(new JProperty("type", "object"));
+                    else
+                        jValue.Parent.Remove();
                 }
                 
                 //Add description with jPath to objects
@@ -313,8 +334,16 @@ namespace Azure.Tools.ArmParser
 
                     currentPath = currentPath.Trim('.');
 
+                    if (string.IsNullOrEmpty(currentPath))
+                    {
+                        continue;
+
+                    }
+
                     var descriptionNode = jObject.Property("description");
-                    if (jObject.Property("type") != null)
+                    if (jObject.Property("type") == null && jObject.Parent.Parent.Parent is JProperty parent && parent.Name == "properties")
+
+                    //if (jObject.Property("type") == null && jObject.Parent.Parent.Parent.Parent is JObject parent && parent.Property("properties") == null)
                     {
                         if (descriptionNode == null)
                         {
